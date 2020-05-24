@@ -1,32 +1,27 @@
-from flask import Flask, request, session
+from flask import Flask, request, session, send_file, redirect, send_from_directory
 from twilio.twiml.messaging_response import MessagingResponse
 import mysql.connector
 import random
-import dropbox
+import pdfkit
 # table de user chama-se user_info
 # Por enqnt são 10 questões e só existe teste de matemática
 # telefone guardado por +55XXXXXXXX (testar com romero se dá problema)
 db = mysql.connector.connect(
-    host='http://database-chatbot.ctcyc2sm3y3o.us-west-2.rds.amazonaws.com/',
+    host='database-chatbot.ctcyc2sm3y3o.us-west-2.rds.amazonaws.com',
     user='pedro',
-    password='SENHA-DB',
+    password='SENHA_DB',
     auth_plugin='mysql_native_password',
     database='chatbotuser',
     port=3306
 )
 cursor = db.cursor()
-application = Flask(__name__)
+application = Flask(__name__, static_url_path='', static_folder='static')
 application.secret_key = 'secretpassword'
-token = 'token'
-dbx = dropbox.Dropbox(token)
 
 
-def save_on_dropbox(file, phone_number, file_path):
-    file_path = f'/{phone_number}/{file_path}'
-    # format: /+490001112223/257fd737153797c6681fbd43387e4d49.jpeg
-    # more on result:
-    # https://dropbox-sdk-python.readthedocs.io/en/latest/api/files.html#dropbox.files.SaveUrlResult
-    return dbx.files_upload(file, file_path, mode=dropbox.files.WriteMode)
+@application.route("/")
+def root():
+    return application.send_static_file("out.pdf")
 
 
 @application.route('/bot', methods=['POST'])
@@ -54,9 +49,11 @@ def bot():
     incoming_msg = request.values.get('Body', '')
     if incoming_msg == 'RESET':
         session.clear()
+        responded = True
+    else:
+        responded = False
     resp = MessagingResponse()
     msg = resp.message()
-    responded = False
     try:
         if session['user'] == 1:
             responded = True
@@ -124,14 +121,12 @@ Digite o número que deseja focar essa semana.''')
                         if i in escolha_dificil:
                             nome_dificeis.append(nome_drive)
                         i = i + 1
-                    #AQUI ENTRA XANDE CRIANDO HTML
+                    # AQUI ENTRA XANDE CRIANDO HTML
                     # retornou um arquivo html no meu diretorio.
-                    file_path = 'nomedoarquivo.html'
-
-                    save_on_dropbox(,phone_number=user_tel, file_path=file_path)
-                    # DPS DROPBOX PRA CATAR URL
-
-                    msg.media('urldropbox')
+                    file_path = 'file.html'
+                    pdfkit.from_file(input='/home/pedro/PycharmProjects/hackathon/file.html',
+                                     output_path='static/out.pdf')
+                    msg.media('/')
                     session['path'] = 'receive'
                     session['purpose'] = 'answers'
                     # FINAL ENVIO SIMULADO
@@ -143,23 +138,23 @@ Após estudo do material, venha novamente testar seus conhecimentos!''')
     except KeyError:
         if not responded:
             msg.body('''Seja bem-vindo ao seu ajudante virtual de estudo!
-    Nosso objetivo é criar uma curadoria personalizada com base no seu conhecimento em cada matéria, facilitando
-    seu estudo à distância de forma inteligente, buscando sempre auxiliar na construção gradativa de conteúdo para que você não se sinta nem pouco desafiado nem desestimulado!
-    Fazemos isso com um teste diagnóstico de 10 questões de uma matérias específica. Com base nos seus acertos, vamos começar a predizer seu nível de conhecimento por meio da TRI!
-    Sim, o mesmo método usado pelo *ENEM*. Dessa forma conseguirmos medir sua proficiência em certa matéria, garantindo que você tenha conteúdo de acordo com seu nível!
-    Percebemos que você *não possui cadastro conosco*, por favor, nos diga na sua próxima mensagem qual seu nome.''')
+Nosso objetivo é criar uma curadoria personalizada com base no seu conhecimento em cada matéria, facilitando
+seu estudo à distância de forma inteligente, buscando sempre auxiliar na construção gradativa de conteúdo para que você não se sinta nem pouco desafiado nem desestimulado!
+Fazemos isso com um teste diagnóstico de 10 questões de uma matérias específica. Com base nos seus acertos, vamos começar a predizer seu nível de conhecimento por meio da TRI!
+Sim, o mesmo método usado pelo *ENEM*. Dessa forma conseguirmos medir sua proficiência em certa matéria, garantindo que você tenha conteúdo de acordo com seu nível!
+Percebemos que você *não possui cadastro conosco*, por favor, nos diga na sua próxima mensagem qual seu nome.''')
             session['user'] = 1
             session['path'] = 'receive'
             session['purpose'] = 'name'
         else:
-            msg.body('''Parece que tivemos um pequeno problema em nossa base de usuários.
-Por favor, insira novamente seu nome na próxima mensagem.''')
+            msg.body('''Tivemos um problema em nossa base de dados, contudo, ainda temos seu cadastro!
+
+Essas são as opções de testes até então:
+Digite 1 se você quer um teste de matemática!(*por favor, digite somente o número*)''')
             session['user'] = 1
-            session['path'] = 'receive'
-            session['purpose'] = 'name'
+            session['path'] = 1
     return str(resp)
 
 
 if __name__ == '__main__':
     application.run()
-
